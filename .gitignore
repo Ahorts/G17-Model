@@ -36,3 +36,5 @@ env/
 # Operating System files
 .DS_Store
 Thumbs.db
+.validation_samples/
+.sample_rows.json

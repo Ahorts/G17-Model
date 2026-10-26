@@ -1,0 +1,207 @@
+{
+  "taxonomy_version": "1.0.0",
+  "note": "The label space for ModalityScan. Everything downstream keys off the *index order* below: a 20-element logits vector is twenty meaningless numbers without this file, so it travels with the model artifact and is loaded from models/ in preference to configs/.",
+
+  "task": "single_label_multiclass",
+  "task_note": "Unlike OrganScan, this is softmax, not sigmoid. An image has exactly one acquisition modality. Multi-label here would allow 'CT and dermoscopy', which is not a thing. Fused PET/CT and other derived composites are handled by a dedicated class, not by two simultaneous positives.",
+
+  "levels": {
+    "family": {
+      "index": [
+        "projection_radiography",
+        "cross_sectional",
+        "ultrasound",
+        "optical",
+        "microscopy",
+        "non_diagnostic"
+      ],
+      "indeterminate": "FAMILY_INDETERMINATE",
+      "note": "Coarse acquisition-physics group. Its job is graceful degradation, not accuracy: 'this is a plain-film-family image but I cannot tell CR from DX' is an answer a router can act on."
+    },
+    "modality": {
+      "index": [
+        "CT",
+        "MR",
+        "US",
+        "CR",
+        "DX",
+        "MG",
+        "RF",
+        "XA",
+        "PT",
+        "NM",
+        "OCT",
+        "FUNDUS",
+        "DERMOSCOPY",
+        "ENDOSCOPY",
+        "HISTOPATHOLOGY",
+        "MICROSCOPY",
+        "PHOTO",
+        "RENDER_3D",
+        "DOCUMENT",
+        "WAVEFORM"
+      ],
+      "indeterminate": "MODALITY_INDETERMINATE",
+      "width_note": "20 slots, fixed by the ONNX output contract. Adding, removing or reordering a slot is a taxonomy_version bump and a re-export, never a config tweak."
+    }
+  },
+
+  "parents": {
+    "modality_to_family": {
+      "CT": "cross_sectional",
+      "MR": "cross_sectional",
+      "PT": "cross_sectional",
+      "NM": "cross_sectional",
+      "US": "ultrasound",
+      "CR": "projection_radiography",
+      "DX": "projection_radiography",
+      "MG": "projection_radiography",
+      "RF": "projection_radiography",
+      "XA": "projection_radiography",
+      "OCT": "optical",
+      "FUNDUS": "optical",
+      "DERMOSCOPY": "optical",
+      "ENDOSCOPY": "optical",
+      "HISTOPATHOLOGY": "microscopy",
+      "MICROSCOPY": "microscopy",
+      "PHOTO": "non_diagnostic",
+      "RENDER_3D": "non_diagnostic",
+      "DOCUMENT": "non_diagnostic",
+      "WAVEFORM": "non_diagnostic"
+    }
+  },
+
+  "collapse_groups": {
+    "note": "The honest answer to the confusable tail. CT vs MR vs US is trivial; CR vs DX is two names for a grayscale projection radiograph taken on different detector hardware, and the pixels frequently do not distinguish them. Rather than pretend, the decode cascade falls back to the group when no single member clears its threshold. A caller asking for `granularity: coarse` gets these directly.",
+    "groups": {
+      "XR_PLAIN": {
+        "members": ["CR", "DX"],
+        "reason": "Computed vs direct digital radiography. Post-processing, not physics, separates them; many public corpora do not record which was used."
+      },
+      "XR_FLUORO": {
+        "members": ["RF", "XA"],
+        "reason": "Fluoroscopy vs angiography. A single frame pulled from an XA run without contrast is an RF frame."
+      },
+      "NUCLEAR": {
+        "members": ["PT", "NM"],
+        "reason": "PET vs planar/SPECT scintigraphy. Both are low-resolution count maps, usually colour-mapped by the vendor."
+      }
+    }
+  },
+
+  "confusable_pairs": {
+    "note": "Reported as a dedicated slice in models/evaluation.json. A headline accuracy figure that averages these against CT-vs-DERMOSCOPY hides the only errors that matter.",
+    "pairs": [
+      ["CR", "DX"],
+      ["RF", "XA"],
+      ["PT", "NM"],
+      ["CT", "MR"],
+      ["MG", "DX"],
+      ["OCT", "US"],
+      ["RENDER_3D", "CT"],
+      ["PHOTO", "DERMOSCOPY"],
+      ["DOCUMENT", "WAVEFORM"]
+    ]
+  },
+
+  "dicom_modality_tag": {
+    "note": "DICOM (0008,0060) -> our label. This is free, near-perfect ground truth for any internal DICOM corpus and is the single biggest reason this project is cheaper than OrganScan. Unlisted values map to null (unknown, fully masked), never to a default class.",
+    "CT": "CT",
+    "MR": "MR",
+    "MRI": "MR",
+    "US": "US",
+    "CR": "CR",
+    "DX": "DX",
+    "DR": "DX",
+    "MG": "MG",
+    "RF": "RF",
+    "XA": "XA",
+    "PT": "PT",
+    "NM": "NM",
+    "ST": "NM",
+    "OPT": "OCT",
+    "OP": "FUNDUS",
+    "OPV": "FUNDUS",
+    "SM": "HISTOPATHOLOGY",
+    "GM": "MICROSCOPY",
+    "ES": "ENDOSCOPY",
+    "XC": "PHOTO",
+    "ECG": "WAVEFORM",
+    "HD": "WAVEFORM",
+    "DOC": "DOCUMENT",
+    "SR": "DOCUMENT",
+    "SC_note": "SC (Secondary Capture) is deliberately NOT mapped. An SC object is a screenshot of something else and its true modality is whatever was on screen; mapping it would inject label noise into the easiest task in the corpus. SC rows are rendered with modality=null and train the family head only if a human confirms them."
+  },
+
+  "tiers": {
+    "note": "Tier is a statement about evidence, not about difficulty. A class is model_trained only when the corpus can support the claim; everything else is reported but flagged. Gates are enforced by scripts/build_frame_dataset.py at corpus build time.",
+    "gates": {
+      "model_trained": { "min_frames": 1500, "min_patients": 100, "min_sources": 2 },
+      "experimental": { "min_frames": 200, "min_patients": 20, "min_sources": 1 },
+      "not_trained": { "min_frames": 0 }
+    },
+    "assignment_note": "Populated by the builder from the measured manifest. The values below are the *intended* tiers given the licence-approved sources in downloaded-training-data/sources.json; the builder overwrites them with what it actually measured and fails if a class claims a tier its counts do not support.",
+    "model_trained": {
+      "types": {
+        "CT": {},
+        "US": {},
+        "DX": {}
+      }
+    },
+    "experimental": {
+      "types": {
+        "CR": {},
+        "MG": {},
+        "ENDOSCOPY": {},
+        "PT": {},
+        "NM": {},
+        "RENDER_3D": {},
+        "PHOTO": {},
+        "MR": { "reason": "AMOS22 is the only MR source present and it yields 404 frames. IXI would be the second source; it is registration-gated and not ingested." },
+        "OCT": { "reason": "Single source (Kermany via OCTMNIST). 6,000 frames, but one source means held-out-source macro-F1 cannot be measured for it." },
+        "FUNDUS": { "reason": "Single source (RetinaMNIST), 1,600 frames." },
+        "DERMOSCOPY": { "reason": "Single source (HAM10000 via DermaMNIST). ISIC would be the second source but parts of it are CC BY-NC." },
+        "HISTOPATHOLOGY": { "reason": "Single source (NCT-CRC-HE via PathMNIST)." }
+      }
+    },
+    "not_trained": {
+      "types": {
+        "RF": { "reason": "No licence-approved fluoroscopy frames sourced yet." },
+        "XA": { "reason": "No licence-approved angiography frames sourced yet." },
+        "MICROSCOPY": { "reason": "Withdrawn from the claim after measurement. Held-out-source recall was 97/3,479 = 2.8%, with 60% of held-out frames predicted HISTOPATHOLOGY. Its two sources are not interchangeable samples of one modality: TissueMNIST (trained on) is grayscale kidney cortex, BloodMNIST (held out) is colour-stained blood smears, so training never saw colour microscopy. The slot stays in the 20-wide output because that is a published contract; the decoder never emits it." },
+        "DOCUMENT": { "reason": "Synthetic-only. Requires a real scanned-requisition corpus before it can be claimed." },
+        "WAVEFORM": { "reason": "Synthetic-only. Requires a real ECG/EEG render corpus before it can be claimed." }
+      }
+    }
+  },
+
+  "descriptions": {
+    "CT": "Computed tomography reconstruction slice.",
+    "MR": "Magnetic resonance slice, any sequence. Sequence identification is explicitly out of scope.",
+    "US": "Ultrasound B-mode, colour Doppler or M-mode frame.",
+    "CR": "Computed radiography (storage-phosphor plate) projection image.",
+    "DX": "Digital radiography (direct/flat-panel detector) projection image.",
+    "MG": "Mammography projection image.",
+    "RF": "Fluoroscopy frame.",
+    "XA": "X-ray angiography / DSA frame.",
+    "PT": "Positron emission tomography slice or MIP.",
+    "NM": "Planar scintigraphy or SPECT image.",
+    "OCT": "Optical coherence tomography B-scan.",
+    "FUNDUS": "Colour fundus photograph.",
+    "DERMOSCOPY": "Dermoscopic skin lesion image.",
+    "ENDOSCOPY": "Endoscopic / laparoscopic video frame.",
+    "HISTOPATHOLOGY": "Stained tissue section patch from a whole-slide image.",
+    "MICROSCOPY": "Cell, blood-smear or other light-microscopy image.",
+    "PHOTO": "Clinical or non-clinical photograph, including photographs of a display.",
+    "RENDER_3D": "Volume rendering, MIP or surface reconstruction derived from a tomographic study.",
+    "DOCUMENT": "Scanned form, report page, table or screenshot of a text UI.",
+    "WAVEFORM": "Rendered physiological signal trace (ECG, EEG, EMG)."
+  },
+
+  "scope_exclusions": {
+    "note": "Written down so it is a decision rather than an omission.",
+    "mr_sequence": "T1 / T2 / FLAIR / DWI identification is NOT in scope. It is a different problem with organ-level difficulty and would need its own head, corpus and evaluation.",
+    "contrast_phase": "Non-contrast / arterial / portal-venous phase is NOT in scope.",
+    "body_region": "Anatomy is NOT in scope. That is OrganScan's job; the two models compose."
+  }
+}

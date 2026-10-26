@@ -1,0 +1,166 @@
+{
+  "schema_version": "1.0.0",
+  "taxonomy_version": "1.0.0",
+  "default_policy": "balanced",
+  "calibration": {
+    "method": "temperature_scaling",
+    "status": "calibrated",
+    "temperature": {
+      "family": 0.6492,
+      "modality": 0.6848
+    },
+    "note": "Softmax over a single-label head *can* be calibrated, which is the one place this task is easier to trust than OrganScan's per-class sigmoids. `make calibrate` fits one scalar per level on the validation split by minimising NLL and writes it back here, flipping status to `calibrated`. Until then a score of 0.9 is a ranking, not a probability.",
+    "fit_note": "Temperature is fitted on validation, never on test, and re-fitted after any re-export. INT8 quantization shifts logit scale slightly, so the FP32 temperature is not automatically correct for the shipped artifact.",
+    "fitted_on": {
+      "split": "validation",
+      "rows": 3101,
+      "backend": "onnx"
+    }
+  },
+  "policies": {
+    "strict": {
+      "modality": 0.3,
+      "group": 0.45,
+      "family": 0.3,
+      "intent": "Favour coverage. Use when a human reviews every result, or when an unrouted image is more expensive than a mis-routed one."
+    },
+    "balanced": {
+      "modality": 0.55,
+      "group": 0.7,
+      "family": 0.5,
+      "intent": "Default. The published per-class results in models/evaluation.json are measured at this policy."
+    },
+    "precision": {
+      "modality": 0.85,
+      "group": 0.92,
+      "family": 0.75,
+      "intent": "Favour precision. Use when a wrong modality downstream silently corrupts a pipeline - for example selecting a CT window for an MR image."
+    }
+  },
+  "per_class_overrides": {
+    "note": "Populated by scripts/tune_thresholds.py once a model exists. Empty until then; an override invented before measurement is a guess wearing a config file's clothes.",
+    "strict": {},
+    "balanced": {
+      "CT": 0.9,
+      "MR": 0.73,
+      "US": 0.68,
+      "DX": 0.18,
+      "OCT": 0.05,
+      "FUNDUS": 0.05,
+      "DERMOSCOPY": 0.08,
+      "HISTOPATHOLOGY": 0.95
+    },
+    "precision": {}
+  },
+  "cascade": {
+    "enabled": true,
+    "order": [
+      "modality",
+      "collapse_group",
+      "family"
+    ],
+    "note": "The decode path. Try the fine label; if no class clears its threshold, sum the softmax mass over the winning class's collapse group and try the group threshold; if that fails, try the family; if that fails, abstain. Each step returns a strictly coarser but still-true answer, which is what a routing caller actually needs. Reported as `granularity` on every result so a caller never has to guess how specific the answer is.",
+    "granularity_values": [
+      "modality",
+      "group",
+      "family",
+      "none"
+    ]
+  },
+  "ood": {
+    "enabled": true,
+    "method": "energy",
+    "formula": "energy = -logsumexp(modality_logits / T)",
+    "note": "Open-set rejection. The realistic failure mode is not confusing CT with MR, it is being handed a scanned consent form, a photograph of a monitor or a calibration phantom and answering confidently. Free-energy over the logits separates in-distribution from unseen input better than max-softmax, costs one logsumexp, and needs no extra head.",
+    "energy_threshold": {
+      "strict": -2.0,
+      "balanced": -3.031,
+      "precision": -6.0
+    },
+    "threshold_note": "Higher energy means less in-distribution, so a frame is rejected when energy > threshold. `strict` favours coverage and therefore rejects least. For reference, a uniform 20-class distribution has energy -log(20) = -3.0, so the balanced cut sits just below 'the model has no idea'. These are placeholders derived from FP32 logit scale; scripts/tune_thresholds.py --false-rejection sets them from the validation split at a fixed false-rejection rate, and they MUST be re-fitted after INT8 export because quantization shifts logit scale.",
+    "fallback_label": "MODALITY_INDETERMINATE",
+    "fallback_note": "A rejected frame reports indeterminate with `out_of_distribution: true`, never a low-scoring real class. The distinction matters: 'I have not seen anything like this' and 'this is probably a CT' need different downstream handling.",
+    "fitted": {
+      "split": "validation",
+      "rows": 3101,
+      "false_rejection_target": 0.02,
+      "measured_false_rejection": 0.02,
+      "measured_detection": null
+    }
+  },
+  "abstention": {
+    "modality_indeterminate": "MODALITY_INDETERMINATE",
+    "family_indeterminate": "FAMILY_INDETERMINATE",
+    "cascade": true,
+    "report_alternatives": 3,
+    "report_alternatives_note": "Top-k runners-up are always returned with their scores. For a confusable pair the second choice carries most of the information a reviewer needs."
+  },
+  "aggregation": {
+    "note": "The single highest-leverage thing in the serving path, and it is nearly free. Modality is constant across a DICOM series by construction, so voting over sampled frames turns an N% frame error rate into roughly N^k at the series level. Unlike OrganScan's loop aggregation there is no correctness subtlety here - there is exactly one right answer per series.",
+    "method": "confidence_weighted_vote",
+    "methods_available": [
+      "majority_vote",
+      "confidence_weighted_vote",
+      "mean_probability"
+    ],
+    "min_frames": 2,
+    "min_supporting_fraction": 0.5,
+    "min_supporting_fraction_note": "The winning label must be the frame-level winner on at least this fraction of sampled frames, otherwise the series aggregate abstains rather than breaking a tie arbitrarily.",
+    "disagreement_warning_threshold": 0.25,
+    "disagreement_note": "When more than this fraction of frames disagree with the series winner, a `series_disagreement` warning is attached. In practice that means the series is mixed (a fused PET/CT, or a study with an embedded secondary capture) and deserves a look."
+  },
+  "policy_tags": {
+    "note": "Attached to each prediction so a caller can branch on behaviour without hard-coding label names.",
+    "GRAYSCALE_NATIVE": [
+      "CT",
+      "MR",
+      "CR",
+      "DX",
+      "MG",
+      "RF",
+      "XA",
+      "OCT"
+    ],
+    "COLOUR_NATIVE": [
+      "FUNDUS",
+      "DERMOSCOPY",
+      "ENDOSCOPY",
+      "HISTOPATHOLOGY",
+      "MICROSCOPY",
+      "PHOTO"
+    ],
+    "COLOUR_MAPPED": [
+      "PT",
+      "NM",
+      "RENDER_3D"
+    ],
+    "COLOUR_OPTIONAL": [
+      "US"
+    ],
+    "COLOUR_OPTIONAL_NOTE": "Ultrasound is the awkward one: B-mode is grayscale, colour Doppler is not. A caller that keys on 'grayscale means radiology' will get US wrong half the time.",
+    "IONISING": [
+      "CT",
+      "CR",
+      "DX",
+      "MG",
+      "RF",
+      "XA",
+      "PT",
+      "NM"
+    ],
+    "NON_DIAGNOSTIC": [
+      "PHOTO",
+      "RENDER_3D",
+      "DOCUMENT",
+      "WAVEFORM"
+    ],
+    "DERIVED": [
+      "RENDER_3D"
+    ],
+    "PHI_RISK_HIGH": [
+      "PHOTO",
+      "DOCUMENT"
+    ],
+    "PHI_RISK_HIGH_NOTE": "These classes are the ones most likely to carry burned-in identifiers in plain text. A pipeline that routes on modality should treat a PHI_RISK_HIGH verdict as a reason to quarantine, not to continue."
+  }
+}

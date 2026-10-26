@@ -8,3 +8,5 @@ numpy
 Pillow
 opencv-python-headless
 scipy
+onnxruntime>=1.20,<2
+pandas

@@ -1,0 +1,27 @@
+{
+  "model_type": "modalityscan",
+  "architectures": [
+    "DualHeadModalityNet"
+  ],
+  "backbone": "mobilenetv4_conv_small.e2400_r224_in1k",
+  "image_size": 224,
+  "geometry": "letterbox",
+  "heads": {
+    "family": 6,
+    "modality": 20
+  },
+  "taxonomy_version": "1.0.0",
+  "outputs": [
+    "family_logits",
+    "modality_logits"
+  ],
+  "input": {
+    "name": "pixel_values",
+    "shape": [
+      "batch",
+      3,
+      224,
+      224
+    ]
+  }
+}
