@@ -8,9 +8,21 @@ from PIL import Image
 
 from modeling_amfu import AMFUNet
 from preprocessing import preprocess_ultrasound
+from modality_check import load_modality_check, screen_uploads
 
 
 MODEL_REPOSITORY = "aee4/G17-AMFU-Net-Paper"
+
+
+def clear_analysis():
+    for key in ("raw_batch_data", "skipped_files", "input_check_error"):
+        st.session_state.pop(key, None)
+
+
+@st.cache_resource(show_spinner="Loading the ultrasound input check...")
+def load_input_check():
+    return load_modality_check()
+
 
 st.set_page_config(page_title="G17 AMFU-Net Demo", page_icon="🔬", layout="wide")
 
@@ -129,6 +141,11 @@ st.warning(
     " **Research Demonstration Only:** The model assumes a lesion is present. "
     "It does not replace clinical pathology or radiological assessment."
 )
+st.caption(
+    "ModalityScan checks ultrasound appearance before enhancement. It does not establish "
+    "breast anatomy, lesion presence or diagnostic suitability. Open-set rejection is "
+    "unmeasured: unrelated images may still pass, and ultrasound images may be rejected."
+)
 
 with st.sidebar:
     st.header("⚙️ Prediction Settings")
@@ -157,6 +174,7 @@ uploaded_files = st.file_uploader(
     "Upload Breast Ultrasound Scans (Supports Multi-Image Batch)",
     type=["png", "jpg", "jpeg", "bmp", "tif", "tiff"],
     accept_multiple_files=True,
+    on_change=clear_analysis,
 )
 
 if not uploaded_files:
@@ -173,13 +191,34 @@ else:
         st.caption(f"Loaded **{len(uploaded_files)}** scan(s) ready for enhancement and segmentation.")
 
     if run_button:
+        clear_analysis()
         try:
-            model = load_model()
-            with st.spinner(f"Enhancing and segmenting {len(uploaded_files)} scan(s)..."):
-                batch_data = run_batch_inference(uploaded_files, model)
-            st.session_state["raw_batch_data"] = batch_data
+            checker = load_input_check()
+            with st.spinner("Checking original images for ultrasound appearance..."):
+                accepted_files, skipped = screen_uploads(uploaded_files, checker)
+            st.session_state["skipped_files"] = skipped
         except Exception as err:
-            st.error(f"Inference error: {err}")
+            st.session_state["input_check_error"] = (
+                f"Ultrasound input check unavailable or failed. Segmentation blocked. {err}"
+            )
+        else:
+            if accepted_files:
+                try:
+                    model = load_model()
+                    with st.spinner(f"Enhancing and segmenting {len(accepted_files)} scan(s)..."):
+                        batch_data = run_batch_inference(accepted_files, model)
+                    st.session_state["raw_batch_data"] = batch_data
+                except Exception as err:
+                    st.session_state.pop("raw_batch_data", None)
+                    st.session_state["input_check_error"] = f"Segmentation failed: {err}"
+            else:
+                st.info("No images passed the ultrasound input check. No segmentation was run.")
+
+if st.session_state.get("input_check_error"):
+    st.error(st.session_state["input_check_error"])
+if st.session_state.get("skipped_files"):
+    st.subheader("Skipped files")
+    st.dataframe(st.session_state["skipped_files"], use_container_width=True, hide_index=True)
 
 if "raw_batch_data" in st.session_state:
     raw_batch = st.session_state["raw_batch_data"]

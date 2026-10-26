@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0.0",
+  "note": "The single source of truth for pixel handling. scripts/build_frame_dataset.py, scripts/train.py, src/modalityscan/preprocess.py and the exported ONNX graph all read this file, and scripts/export_onnx.py copies it into models/ so the shipped artifact carries its own contract. If training and serving ever disagree about geometry or normalisation, the model silently loses several points and nothing errors.",
+
+  "input_name": "pixel_values",
+  "dtype": "float32",
+  "dtype_note": "float32 in, even for the INT8 model. Static quantization inserts QuantizeLinear at the graph head; handing it uint8 is a silent accuracy loss.",
+  "layout": "NCHW",
+  "channels": 3,
+  "channels_note": "Always 3, and never collapsed to 1. Colour presence is this model's single most reliable feature: it separates dermoscopy, endoscopy, pathology and colour Doppler from every grayscale radiology class for free. A grayscale-first pipeline throws that away.",
+  "image_size": 224,
+  "dynamic_axes": { "batch": 0 },
+  "spatial_dims_fixed": true,
+
+  "design_inversion": {
+    "note": "READ THIS BEFORE COPYING ANYTHING FROM OrganScan. That pipeline is modality-*conditional* by design: it applies CT windowing after RescaleSlope/Intercept, crops ultrasound to SequenceOfUltrasoundRegions, and centre-crops to a square. Every one of those steps is either circular or destructive here.",
+    "circular": "Choosing a CT window requires already knowing the image is a CT. A modality detector cannot consume a modality-conditional rendering without leaking its own answer at train time and failing at inference time.",
+    "destructive_geometry": "Centre-cropping to 224 discards the field-of-view outline - the ultrasound sector, the mammography chest-wall edge, the circular fundus aperture, the endoscope vignette. Those outlines are among the strongest cues available, so geometry is letterbox-padded, not cropped.",
+    "destructive_ui": "Cropping ultrasound to the scan region removes burned-in vendor UI. For OrganScan that crop is mandatory because the UI text reads the organ name. Here the UI is not a label leak - it does not name the modality - but it IS a dataset-identity leak, so it is kept in frame and attacked with border-biased random erasing during training instead."
+  },
+
+  "pipeline": [
+    { "step": 1, "op": "decode", "detail": "PNG/JPEG for serving. For ingest: honour TransferSyntaxUID; sample DICOM multi-frame and volumes by stride, never frame-by-frame." },
+    { "step": 2, "op": "photometric", "detail": "Invert when PhotometricInterpretation == MONOCHROME1. Ingest only - a served PNG has already been rendered." },
+    { "step": 3, "op": "colour", "detail": "Keep RGB if the source is RGB. Replicate to 3 channels if it is single-channel. Never convert colour to grayscale." },
+    { "step": 4, "op": "letterbox", "detail": "Pad the shorter side with `pad_value` to a square, then resize to 224. Aspect ratio and FOV outline survive." },
+    { "step": 5, "op": "to_float", "detail": "Divide by 255 into [0, 1]." },
+    { "step": 6, "op": "normalize", "detail": "Subtract mean, divide by std." },
+    { "step": 7, "op": "layout", "detail": "HWC -> CHW, stack to [B, 3, 224, 224]." }
+  ],
+
+  "geometry": {
+    "mode": "letterbox",
+    "mode_note": "Not `shortest_side + center_crop`. See design_inversion.destructive_geometry.",
+    "image_size": 224,
+    "pad_value": 0,
+    "pad_value_note": "Black. Most medical modalities already sit on a black background, so a black pad is the least informative padding available. A mid-grey pad would create a synthetic border that correlates with original aspect ratio, which is a dataset fingerprint.",
+    "interpolation": "bilinear",
+    "antialias": true
+  },
+
+  "rescale_factor": 0.00392156862745098,
+  "image_mean": [0.485, 0.456, 0.406],
+  "image_std": [0.229, 0.224, 0.225],
+  "normalization_note": "ImageNet statistics, because the backbone is ImageNet-initialised. scripts/export_onnx.py re-reads the chosen timm config at export time and fails if it disagrees with these values rather than letting them drift.",
+
+  "rendering": {
+    "note": "INGEST ONLY. These settings turn raw DICOM/NIfTI intensities into the 8-bit PNGs in prepared-training-data/frames. They are NOT applied at serving time - a served PNG has already been rendered by whatever produced it, and re-stretching its histogram would destroy the very distribution the model was trained to read.",
+    "mode": "robust_percentile",
+    "mode_note": "One rendering rule for every modality. Deliberately worse than a per-modality window and deliberately not negotiable: a per-modality rendering makes the training corpus separable by rendering artefact rather than by image content, and the model scores 0.99 in-distribution and collapses on anything rendered by a different tool.",
+    "clip_percentiles": [0.5, 99.5],
+    "apply_rescale_slope_intercept": true,
+    "apply_rescale_slope_intercept_note": "Applied because it is a pure affine correction recorded in the file, not a modality-specific choice. The percentile stretch that follows is invariant to it anyway; it is applied so that HU-based provenance checks remain meaningful.",
+    "output_bit_depth": 8,
+    "max_side": 512,
+    "max_side_note": "Frames are stored at up to 512px and letterboxed to 224 at load time, so a later experiment at 256 or 320 does not require re-rendering the corpus."
+  },
+
+  "train_augmentation": {
+    "note": "Tuned against dataset-shortcut learning, which is the dominant failure mode for this task. Every entry below is either defending a real cue or attacking a fake one.",
+
+    "horizontal_flip": 0.5,
+    "horizontal_flip_note": "ON, unlike OrganScan. There are no laterality labels here to destroy, and flipping is a cheap defence against a corpus where every chest film happens to be oriented the same way.",
+
+    "vertical_flip": 0.0,
+    "vertical_flip_note": "OFF, permanently. The ultrasound sector apex is at the top and the mammography chest wall is at one edge; flipping vertically invents frames that no scanner produces.",
+
+    "random_resized_crop": { "enabled": true, "scale": [0.6, 1.0], "ratio": [0.9, 1.11] },
+    "random_resized_crop_note": "Ratio held close to square on purpose. A wide ratio range distorts the FOV outline that letterboxing exists to preserve.",
+
+    "rotation_degrees": 8,
+
+    "brightness": 0.25,
+    "contrast": 0.25,
+
+    "saturation": 0.0,
+    "saturation_note": "ZERO, permanently. Colour presence is the highest-signal feature in this task. Jittering saturation teaches the model to ignore it.",
+    "hue": 0.0,
+    "hue_note": "Zero. Pathology stain hue (H&E purple/pink) and fundus orange are class-defining, not nuisance.",
+    "random_grayscale": 0.0,
+    "random_grayscale_note": "Zero. Converting a dermoscopy image to grayscale produces a labelled example that is genuinely ambiguous.",
+
+    "jpeg_compression": { "enabled": true, "probability": 0.35, "quality": [35, 95] },
+    "jpeg_compression_note": "ON, and load-bearing. Real traffic is re-encoded, screenshotted and forwarded. Compression noise is also a dataset fingerprint: if every histopathology patch in training is a clean PNG and every CT is a JPEG, the model learns the encoder.",
+
+    "downscale_upscale": { "enabled": true, "probability": 0.3, "factor": [2, 4] },
+    "downscale_upscale_note": "Native resolution is the second-strongest dataset fingerprint after compression. MedMNIST frames are upsampled 28px thumbnails; without this, 'blurry' becomes a synonym for 'MedMNIST'.",
+
+    "gaussian_noise_std": 0.02,
+
+    "random_erasing": { "probability": 0.25, "border_bias": 0.7 },
+    "random_erasing_note": "Higher than OrganScan and biased toward the frame border, where burned-in vendor UI, scale bars, laterality markers and institution banners live. Those overlays correlate almost perfectly with source dataset, so an unerased model learns the hospital instead of the physics.",
+
+    "mixup": { "enabled": false, "alpha": 0.2 },
+    "mixup_note": "OFF by default. Blending a CT with a fundus photograph produces an image whose true modality is neither, under a soft label that claims it is both. Revisit only if measured over-confidence survives temperature scaling."
+  }
+}

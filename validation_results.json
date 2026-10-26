@@ -1,0 +1,190 @@
+{
+  "revision": "2a85d5aee29ee62bf2795cbd6e02c8ee5c248eb9",
+  "providers": [
+    "CPUExecutionProvider"
+  ],
+  "results": [
+    {
+      "filename": "astronaut.png",
+      "size": [
+        512,
+        512
+      ],
+      "mode": "RGB",
+      "sha256": "88431cd9653ccd539741b555fb0a46b61558b301d4110412b5bc28b5e3ea6cb5",
+      "label": "MODALITY_INDETERMINATE",
+      "granularity": "none",
+      "score": 0.0,
+      "out_of_distribution": true,
+      "accepted": false
+    },
+    {
+      "filename": "astronaut_gray.png",
+      "size": [
+        512,
+        512
+      ],
+      "mode": "L",
+      "sha256": "fc9a97ac5e61250811c61332f71fbf2edef48d238508358d48c6dc5e42d9fa8b",
+      "label": "MR",
+      "granularity": "modality",
+      "score": 0.9386251264224462,
+      "out_of_distribution": false,
+      "accepted": false
+    },
+    {
+      "filename": "busi_0_image.png",
+      "size": [
+        562,
+        471
+      ],
+      "mode": "RGB",
+      "sha256": "dccb516579e8b1fc1233bac9e11d93489b263d33918e127f36910c8a1fdf56bb",
+      "label": "US",
+      "granularity": "modality",
+      "score": 0.9983787194042703,
+      "out_of_distribution": false,
+      "accepted": true
+    },
+    {
+      "filename": "busi_0_mask.png",
+      "size": [
+        562,
+        471
+      ],
+      "mode": "L",
+      "sha256": "8570618ba2c66dfec21a041545c16dd3fa2ec3b73982e89145a8fd81e64c2487",
+      "label": "microscopy",
+      "granularity": "family",
+      "score": 0.8680002416085241,
+      "out_of_distribution": false,
+      "accepted": false
+    },
+    {
+      "filename": "busi_1_image.png",
+      "size": [
+        683,
+        585
+      ],
+      "mode": "RGB",
+      "sha256": "a1c623e266c3f2d50673c31754d0574695afd3406ac8587758a3ca9fed73bea1",
+      "label": "US",
+      "granularity": "modality",
+      "score": 0.9996090796954553,
+      "out_of_distribution": false,
+      "accepted": true
+    },
+    {
+      "filename": "busi_1_mask.png",
+      "size": [
+        683,
+        585
+      ],
+      "mode": "L",
+      "sha256": "f0d9e41f063e1c06fceda36a12f2d274b92d78e67b9f1934d078532d73228085",
+      "label": "MODALITY_INDETERMINATE",
+      "granularity": "none",
+      "score": 0.0,
+      "out_of_distribution": true,
+      "accepted": false
+    },
+    {
+      "filename": "busi_2_image.png",
+      "size": [
+        323,
+        473
+      ],
+      "mode": "RGB",
+      "sha256": "7f777f4af86aa7ebf9970e09456dbc99510dda9fe32735243c83dd012add8e85",
+      "label": "US",
+      "granularity": "modality",
+      "score": 0.9988446617031369,
+      "out_of_distribution": false,
+      "accepted": true
+    },
+    {
+      "filename": "busi_2_mask.png",
+      "size": [
+        323,
+        473
+      ],
+      "mode": "L",
+      "sha256": "8ec848923ffed4f38caa47f237f0655c5605b9e13ad08dff6486539a0f1030cb",
+      "label": "microscopy",
+      "granularity": "family",
+      "score": 0.782971660311652,
+      "out_of_distribution": false,
+      "accepted": false
+    },
+    {
+      "filename": "camera.png",
+      "size": [
+        512,
+        512
+      ],
+      "mode": "L",
+      "sha256": "b0793d2adda0fa6ae899c03989482bff9a42d3d5690fc7e3648f2795d730c23a",
+      "label": "cross_sectional",
+      "granularity": "family",
+      "score": 0.9386365389413096,
+      "out_of_distribution": false,
+      "accepted": false
+    },
+    {
+      "filename": "CT_small.png",
+      "size": [
+        128,
+        128
+      ],
+      "mode": "L",
+      "sha256": "234f104ac52a3268e104f83e11628d2602bcba81b17c2229e76a95f60bea64a8",
+      "label": "CT",
+      "granularity": "modality",
+      "score": 0.9765244468146558,
+      "out_of_distribution": false,
+      "accepted": false
+    },
+    {
+      "filename": "MR_small.png",
+      "size": [
+        64,
+        64
+      ],
+      "mode": "L",
+      "sha256": "3372411bb21bf3c1d1c5ee07064b401d9433956249360d342fed9925c6feefa8",
+      "label": "MODALITY_INDETERMINATE",
+      "granularity": "none",
+      "score": 0.0,
+      "out_of_distribution": true,
+      "accepted": false
+    },
+    {
+      "filename": "page.png",
+      "size": [
+        384,
+        191
+      ],
+      "mode": "L",
+      "sha256": "341a6f0a61557662b02734a9b6e56ec33a915b2c41886b97509dedf2a43b47a3",
+      "label": "microscopy",
+      "granularity": "family",
+      "score": 0.7571979109464316,
+      "out_of_distribution": false,
+      "accepted": false
+    },
+    {
+      "filename": "vscode_screenshot.png",
+      "size": [
+        777,
+        305
+      ],
+      "mode": "RGB",
+      "sha256": "ea27a72a44907747b6d784aed60cdf4bbde66dd023dd8c0c3e18658bb9985c56",
+      "label": "microscopy",
+      "granularity": "family",
+      "score": 0.774273888171382,
+      "out_of_distribution": false,
+      "accepted": false
+    }
+  ]
+}
