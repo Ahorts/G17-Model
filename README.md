@@ -1,7 +1,9 @@
 # G17 AMFU-Net Streamlit Demo
 
 This Streamlit application demonstrates breast-lesion segmentation with the
-G17 paper-based AMFU-Net model. It applies SRAD despeckling and CLAHE
+selected Ahortz model: **Exp-25: U-Net + DAG, SRAD + CLAHE**.
+Reported internal test Dice: **82.76%**, not clinical accuracy.
+It applies SRAD despeckling and CLAHE
 enhancement before generating a probability map, binary mask and overlay.
 
 Before any enhancement, the app runs the pretrained
@@ -48,7 +50,19 @@ streamlit run app.py
 4. Set the main file path to `app.py`.
 5. Deploy the app.
 
-The weights are downloaded from `aee4/G17-AMFU-Net-Paper` when the app starts.
+The config and `model.safetensors` are downloaded from
+`Ahorts/G17-AMFU-Net-Paper`, pinned to revision
+`f2f5d8c9d95611360a5a991e74a9e8f2932b97a8`.
+Experiment branch: `exp25-unet-dag-gpu-reflect-enhanced-cosine-only`.
+This is a Git revision, not a subfolder. The verified config is `AMFUNet`,
+base channels 32, image size 256, DAG enabled and MFEF disabled.
+MFEF is neither instantiated nor applied for this checkpoint. Architecture
+toggles match [Ahortz's training implementation](https://github.com/aee4/AMFU-Net-G17-/blob/main/training/training_marimo.py).
+Weights load with `load_state_dict(strict=True)`; missing, unexpected or
+shape-mismatched keys fail the run. There is no partial-weight fallback.
+Inference preserves SRAD + CLAHE, area resize and `(x / 255 - 0.5) / 0.5`
+normalization. Reflection padding was a training augmentation and is not
+applied during inference.
 The model is cached after loading, so it is not downloaded for every prediction.
 Both models are loaded lazily on analysis; the segmentation model is loaded
 only when the input check accepts at least one file. Upload pixels are processed
@@ -62,8 +76,11 @@ Do not upload identifiable patient data.
 
 ```bash
 python -m unittest discover -s tests -v
+python validate_checkpoint.py SAMPLE_DIRECTORY --output LOCAL_REPORT.json
 ```
 
 Test configuration fixtures are unmodified Apache-2.0 ModalityScan JSON files
 from the pinned revision. They allow policy tests without model downloads.
 Runtime dependencies are still required for loader and app integration tests.
+The checkpoint smoke test uses the public samples documented in VALIDATION.md;
+keep its generated report, masks and overlays outside tracked source files.

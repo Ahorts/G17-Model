@@ -27,7 +27,7 @@ class AppGate(unittest.TestCase):
     def test_loading_failure_clears_old_results_and_blocks_model(self):
         with patch("streamlit.file_uploader", return_value=self.files), \
                 patch("modality_check.load_modality_check", side_effect=OSError("offline")), \
-                patch("modeling_amfu.AMFUNet.from_pretrained") as segmenter:
+                patch("checkpoint.load_checkpoint") as segmenter:
             app = AppTest.from_file(APP_PATH, default_timeout=20).run()
             app.session_state["raw_batch_data"] = ["stale"]
             app.button[0].click().run()
@@ -41,7 +41,7 @@ class AppGate(unittest.TestCase):
         checker.classify.return_value = Decision("CT", "modality", .99)
         with patch("streamlit.file_uploader", return_value=self.files), \
                 patch("modality_check.load_modality_check", return_value=checker), \
-                patch("modeling_amfu.AMFUNet.from_pretrained") as segmenter:
+                patch("checkpoint.load_checkpoint") as segmenter:
             app = AppTest.from_file(APP_PATH, default_timeout=20).run()
             app.button[0].click().run()
             self.assertFalse(app.exception)
@@ -55,7 +55,7 @@ class AppGate(unittest.TestCase):
         checker.classify.side_effect = [Decision("US", "modality", .99), RuntimeError("bad graph")]
         with patch("streamlit.file_uploader", return_value=self.files), \
                 patch("modality_check.load_modality_check", return_value=checker), \
-                patch("modeling_amfu.AMFUNet.from_pretrained") as segmenter:
+                patch("checkpoint.load_checkpoint") as segmenter:
             app = AppTest.from_file(APP_PATH, default_timeout=20).run()
             app.button[0].click().run()
             self.assertFalse(app.exception)
@@ -68,7 +68,7 @@ class AppGate(unittest.TestCase):
         model = Mock(return_value={"logits": torch.zeros((1, 1, 256, 256))})
         with patch("streamlit.file_uploader", return_value=self.files), \
                 patch("modality_check.load_modality_check", return_value=checker), \
-                patch("modeling_amfu.AMFUNet.from_pretrained", return_value=model):
+                patch("checkpoint.load_checkpoint", return_value=model):
             app = AppTest.from_file(APP_PATH, default_timeout=20).run()
             app.button[0].click().run()
             self.assertFalse(app.exception)
