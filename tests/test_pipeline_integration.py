@@ -36,11 +36,15 @@ class PipelineIntegration(unittest.TestCase):
         self.assertFalse(skipped)
         self.assertEqual(accepted[0].getvalue(), original_bytes)
 
+        stages = []
+
         def forward(*, pixel_values):
+            self.assertEqual(stages[-1], "segmenting")
             torch.testing.assert_close(pixel_values, expected["tensor"], rtol=0, atol=0)
             return {"logits": torch.zeros((1, 1, 256, 256))}
 
-        result = namespace["run_batch_inference"](accepted, forward)[0]
+        result = namespace["run_batch_inference"](accepted, forward, stages.append)[0]
+        self.assertEqual(stages, ["enhancing", "segmenting", "preparing"])
         np.testing.assert_array_equal(result["original"], expected["original"])
         np.testing.assert_array_equal(result["enhanced"], expected["enhanced"])
         self.assertEqual(result["probability"].shape, (80, 120))

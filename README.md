@@ -1,5 +1,24 @@
 # G17 AMFU-Net Streamlit Demo
 
+A navy and teal research workspace built with native Streamlit controls. Add
+de-identified breast ultrasound scans, run analysis, then inspect large original
+and overlay comparisons, enhanced scans, probability maps and binary masks.
+Numbered scan selections distinguish duplicate filenames. The threshold beside
+the results changes masks from saved probabilities without rerunning either model.
+
+The processing card follows actual checking, optional model loading, enhancement,
+batched inference and result preparation. A CSS scan sweep, waveform and
+indeterminate bar illustrate activity rather than live predictions. Completed
+runs, rejected batches and failures stop the animation and retain an expandable
+stage history. Model loading is shown only on an actual cache miss, and resource
+failures remain retryable. There are no invented percentages or ETAs.
+
+The layout adapts to desktop, tablet and phone screens. Controls remain native
+and keyboard accessible; reduced-motion preferences disable custom animation.
+Local CSS and bundled SVG assets require no animation service or CDN. See
+[third-party notices](THIRD_PARTY_NOTICES.md) for the bundled Lucide icon.
+Streamlit usage telemetry is disabled. Do not upload identifiable patient data.
+
 This Streamlit application demonstrates breast-lesion segmentation with the
 selected Ahortz model: **Exp-25: U-Net + DAG, SRAD + CLAHE**.
 Reported internal test Dice: **82.76%**, not clinical accuracy.

@@ -113,7 +113,7 @@ class Decisions(unittest.TestCase):
         clear = next(node for node in source.body if isinstance(node, ast.FunctionDef)
                      and node.name == "clear_analysis")
         state = dict(raw_batch_data=["old"], skipped_files=["old"],
-                     input_check_error="old", threshold=.7)
+                     input_check_error="old", analysis_state="old", threshold=.7)
         namespace = dict(st=SimpleNamespace(session_state=state))
         exec(compile(ast.Module(body=[clear], type_ignores=[]), "app.py", "exec"), namespace)
         namespace["clear_analysis"]()
