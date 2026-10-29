@@ -6,12 +6,11 @@ import streamlit as st
 import torch
 from PIL import Image
 
-from modeling_amfu import AMFUNet
+from checkpoint import (
+    MODEL_BRANCH, MODEL_LABEL, MODEL_REPOSITORY, MODEL_REVISION, load_checkpoint,
+)
 from preprocessing import preprocess_ultrasound
 from modality_check import load_modality_check, screen_uploads
-
-
-MODEL_REPOSITORY = "aee4/G17-AMFU-Net-Paper"
 
 
 def clear_analysis():
@@ -30,10 +29,7 @@ st.set_page_config(page_title="G17 AMFU-Net Demo", page_icon="🔬", layout="wid
 @st.cache_resource(show_spinner="Loading the AMFU-Net model...")
 def load_model():
     """Download the model once and reuse it across predictions."""
-    loaded_model = AMFUNet.from_pretrained(MODEL_REPOSITORY)
-    loaded_model.to("cpu")
-    loaded_model.eval()
-    return loaded_model
+    return load_checkpoint()
 
 
 def create_overlay(original_gray: np.ndarray, binary_mask: np.ndarray) -> np.ndarray:
@@ -133,6 +129,8 @@ def compute_derived_results(batch_results, threshold: float):
 
 
 st.title("G17 AMFU-Net Breast Lesion Segmentation")
+st.caption(MODEL_LABEL)
+st.caption("Reported internal test Dice: 82.76%. This is not clinical accuracy.")
 st.write(
     "Upload one or more breast ultrasound images containing suspected lesions. "
     "The model will analyze each image and generate a segmentation mask."
@@ -165,8 +163,11 @@ with st.sidebar:
     st.divider()
     st.markdown("### Model Details")
     st.caption(
-        "- **Architecture:** AMFU-Net (4-level U-Net + DAG + MFEF)\n"
-        "- **Checkpoint:** `aee4/G17-AMFU-Net-Paper`\n"
+        "- **Architecture:** 4-level U-Net + DAG\n"
+        f"- **Experiment:** {MODEL_LABEL}\n"
+        f"- **Checkpoint:** `{MODEL_REPOSITORY}`\n"
+        f"- **Revision:** `{MODEL_REVISION}`\n"
+        f"- **Experiment branch:** `{MODEL_BRANCH}`\n"
         "- **Input Resolution:** $256 \\times 256$"
     )
 

@@ -145,12 +145,16 @@ class AMFUConfig(PretrainedConfig):
         self,
         base_channels=32,
         image_size=256,
+        use_dag=True,
+        use_mfef=True,
         **kwargs,
     ):
         super().__init__(**kwargs)
 
         self.base_channels = base_channels
         self.image_size = image_size
+        self.use_dag = use_dag
+        self.use_mfef = use_mfef
 
 
 class AMFUNet(PreTrainedModel):
@@ -168,12 +172,14 @@ class AMFUNet(PreTrainedModel):
 
         self.bottleneck = ConvBNReLU(b * 8, b * 16)
         self.pool = nn.MaxPool2d(kernel_size=2)
-        self.mfef = MFEF(b * 16)
+        if config.use_mfef:
+            self.mfef = MFEF(b * 16)
 
-        self.dag1 = DAG(b)
-        self.dag2 = DAG(b * 2)
-        self.dag3 = DAG(b * 4)
-        self.dag4 = DAG(b * 8)
+        if config.use_dag:
+            self.dag1 = DAG(b)
+            self.dag2 = DAG(b * 2)
+            self.dag3 = DAG(b * 4)
+            self.dag4 = DAG(b * 8)
 
         self.up4 = nn.ConvTranspose2d(
             b * 16,
@@ -221,28 +227,28 @@ class AMFUNet(PreTrainedModel):
         s3 = self.enc3(self.pool(s2))
         s4 = self.enc4(self.pool(s3))
 
-        x = self.mfef(
-            self.bottleneck(self.pool(s4))
-        )
+        x = self.bottleneck(self.pool(s4))
+        if self.config.use_mfef:
+            x = self.mfef(x)
 
         x = self.up4(x)
         x = self.dec4(
-            torch.cat([x, self.dag4(s4)], dim=1)
+            torch.cat([x, self.dag4(s4) if self.config.use_dag else s4], dim=1)
         )
 
         x = self.up3(x)
         x = self.dec3(
-            torch.cat([x, self.dag3(s3)], dim=1)
+            torch.cat([x, self.dag3(s3) if self.config.use_dag else s3], dim=1)
         )
 
         x = self.up2(x)
         x = self.dec2(
-            torch.cat([x, self.dag2(s2)], dim=1)
+            torch.cat([x, self.dag2(s2) if self.config.use_dag else s2], dim=1)
         )
 
         x = self.up1(x)
         x = self.dec1(
-            torch.cat([x, self.dag1(s1)], dim=1)
+            torch.cat([x, self.dag1(s1) if self.config.use_dag else s1], dim=1)
         )
 
         logits = self.head(x)
